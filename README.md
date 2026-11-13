@@ -1,4 +1,4 @@
-############################# # Autonomous Enterprise Operations Assistant (Model Context Protocol)
+# Autonomous Enterprise Operations Assistant (Model Context Protocol)
 
 An end-to-end, zero-trust tool-augmented AI assistant built with the official Python **Model Context Protocol (MCP)** SDK (`FastMCP` + `ClientSession`) over `stdio` transport, powered by **Gemini 3.5** (`gemini-3.5-flash` / `gemini-3.5-pro`) and an interactive **Streamlit** operations console.
 
