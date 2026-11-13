@@ -11,7 +11,7 @@ dependencies = [
     "aiosqlite>=0.22.1",
     "fastapi>=0.162.5",
     "httpx>=0.28.1",
-    "mcp[cli]>=2.3.0",
+    "mcp[cli]>=1.25.0,<2.0.0",
     "openai>=3.50.0",
     "pydantic>=2.14.3",
     "pytest>=9.2.0",
@@ -28,3 +28,7 @@ mcp-agent-tools = "mcp_agent_tools:main"
 [build-system]
 requires = ["uv_build>=0.13.4,<0.14.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
