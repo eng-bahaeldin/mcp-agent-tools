@@ -81,7 +81,7 @@ col1, col2 = st.columns([1, 4])
 with col1:
     model_choice = st.selectbox(
         "Foundation Model",
-        ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.5-flash", "gemini-3.5-pro"],
+        ["gemini-3.5-flash", "gemini-3.5-pro"],
     )
 with col2:
     run_clicked = st.button("Execute Autonomous Workflow", type="primary")
