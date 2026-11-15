@@ -9,6 +9,19 @@ from mcp.client.stdio import stdio_client
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _clean_schema_for_gemini(schema: dict[str, Any]) -> dict[str, Any]:
+    """Removes JSON Schema metadata keys (like 'title') that trigger HTTP 400 on Gemini's OpenAI-compat API."""
+    cleaned: dict[str, Any] = {}
+    for k, v in schema.items():
+        if k in {"title", "$schema"}:
+            continue
+        if isinstance(v, dict):
+            cleaned[k] = _clean_schema_for_gemini(v)
+        else:
+            cleaned[k] = v
+    return cleaned
+
+
 class EnterpriseMCPClient:
     def __init__(self):
         self.exit_stack = AsyncExitStack()
@@ -57,7 +70,7 @@ class EnterpriseMCPClient:
                     "function": {
                         "name": tool.name,
                         "description": tool.description or "",
-                        "parameters": tool.inputSchema,
+                        "parameters": _clean_schema_for_gemini(tool.inputSchema),
                     },
                 }
             )

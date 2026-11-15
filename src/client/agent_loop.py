@@ -1,9 +1,10 @@
+import asyncio
 import json
 import os
 import time
 from typing import Any
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError
 from src.client.mcp_client import EnterpriseMCPClient
 
 load_dotenv()
@@ -19,9 +20,30 @@ When answering operational queries:
 5. Synthesize a concise, factual operational report once all required tool observations are gathered."""
 
 
+async def _create_completion_with_retry(
+    llm: AsyncOpenAI,
+    max_retries: int = 3,
+    **kwargs: Any,
+) -> Any:
+    """Retries transient HTTP 429 rate limits with exponential backoff."""
+    for attempt in range(max_retries + 1):
+        try:
+            return await llm.chat.completions.create(**kwargs)
+        except RateLimitError as err:
+            # If quota is strictly 0 (e.g., model not enabled on free tier), fail fast with clear guidance
+            if "limit: 0" in str(err):
+                raise RuntimeError(
+                    f"Model '{kwargs.get('model')}' has 0 free-tier quota on your GEMINI_API_KEY. "
+                    "Switch to 'gemini-2.5-flash' in the Foundation Model dropdown."
+                ) from err
+            if attempt == max_retries:
+                raise
+            await asyncio.sleep(2 ** (attempt + 1))
+
+
 async def run_agent_workflow(
     user_prompt: str,
-    model: str = "gemini-3.5-flash",
+    model: str = "gemini-2.5-flash",
     max_turns: int = 6,
     api_key: str | None = None,
     client_override: AsyncOpenAI | None = None,
@@ -48,7 +70,8 @@ async def run_agent_workflow(
         ]
 
         for turn in range(1, max_turns + 1):
-            response = await llm.chat.completions.create(
+            response = await _create_completion_with_retry(
+                llm,
                 model=model,
                 messages=messages,
                 tools=mcp_client.openai_tools,

@@ -9,12 +9,13 @@ import asyncio
 import json
 import os
 import streamlit as st
+from openai import BadRequestError, RateLimitError
 from src.client.agent_loop import run_agent_workflow
 from src.client.mcp_client import EnterpriseMCPClient
 
 st.set_page_config(page_title="MCP Enterprise Ops Console", layout="wide")
 st.title("Autonomous Enterprise Operations Assistant (MCP)")
-st.caption("Powered by Gemini 3.5 & Zero-Trust Tool Execution over Model Context Protocol (stdio)")
+st.caption("Powered by Gemini & Zero-Trust Tool Execution over Model Context Protocol (stdio)")
 
 DEFAULT_OPS_PROMPT = (
     "Check if our inventory in Seattle has enough stock of SKU-90210 to fulfill order #4492, "
@@ -27,10 +28,10 @@ def resolve_gemini_api_key() -> str:
     """Loads GEMINI_API_KEY from Streamlit Cloud secrets or local .env without exposing it in UI."""
     try:
         if "GEMINI_API_KEY" in st.secrets:
-            return st.secrets["GEMINI_API_KEY"]
+            return str(st.secrets["GEMINI_API_KEY"]).strip()
     except Exception:
         pass
-    return os.getenv("GEMINI_API_KEY", "")
+    return os.getenv("GEMINI_API_KEY", "").strip()
 
 
 with st.sidebar:
@@ -78,7 +79,10 @@ prompt_input = st.text_area(
 
 col1, col2 = st.columns([1, 4])
 with col1:
-    model_choice = st.selectbox("Foundation Model", ["gemini-3.5-flash", "gemini-3.5-pro"])
+    model_choice = st.selectbox(
+        "Foundation Model",
+        ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.5-flash", "gemini-3.5-pro"],
+    )
 with col2:
     run_clicked = st.button("Execute Autonomous Workflow", type="primary")
 
@@ -87,12 +91,25 @@ if run_clicked and prompt_input.strip():
     if not gemini_key:
         st.error("Server configuration error: GEMINI_API_KEY not found in .env or Streamlit Secrets.")
     else:
-        with st.spinner("Spawning MCP Server over stdio and orchestrating Gemini 3.5 tool calls..."):
-            result = asyncio.run(
-                run_agent_workflow(prompt_input, model=model_choice, api_key=gemini_key)
-            )
-            st.session_state["discovered_tools"] = result["discovered_tools"]
-            st.session_state["last_result"] = result
+        with st.spinner(f"Spawning MCP Server over stdio and orchestrating {model_choice} tool calls..."):
+            try:
+                result = asyncio.run(
+                    run_agent_workflow(prompt_input, model=model_choice, api_key=gemini_key)
+                )
+                st.session_state["discovered_tools"] = result["discovered_tools"]
+                st.session_state["last_result"] = result
+            except BadRequestError as bre:
+                st.error(
+                    f"API BadRequestError (HTTP 400): {bre.message}. "
+                    "Verify that GEMINI_API_KEY in Streamlit Cloud Secrets is valid and has no extra quotes."
+                )
+            except RateLimitError:
+                st.error(
+                    f"Rate limit (HTTP 429) hit for `{model_choice}`. "
+                    "Wait a few seconds and retry."
+                )
+            except Exception as exc:
+                st.error(f"Workflow execution error: {exc}")
 
 if "last_result" in st.session_state:
     res = st.session_state["last_result"]
